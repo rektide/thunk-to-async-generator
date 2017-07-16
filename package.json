@@ -1,0 +1,35 @@
+{
+	"name": "thunk-to-async-generator",
+	"version": "1.0.0",
+	"description": "One or more Async Generators fed by a Thunk",
+	"main": "build/thunk-to-async-generator.js",
+	"modules": "thunk-to-async-generator.js",
+	"scripts": {
+		"prepublish": "npm run build",
+		"build": "babel -o build/thunk-to-async-generator.js thunk-to-async-generator.js",
+		"test": "node .test"
+	},
+	"keywords": [
+		"async-generator",
+		"thunk"
+	],
+	"author": "rektide de la faye <rektide@voodoowarez.com>",
+	"license": "MIT",
+	"devDependencies": {
+		"babel-cli": "^6.24.1",
+		"babel-plugin-transform-async-generator-functions": "^6.24.1",
+		"babel-plugin-transform-async-to-generator": "^6.24.1",
+		"tape": "^4.7.0"
+	},
+	"dependencies": {
+		"blue-tape": "^1.0.0",
+		"double-ended-queue": "^2.1.0-0",
+		"p-defer": "^1.0.0"
+	},
+	"babel": {
+		"plugins": [
+			"transform-async-generator-functions",
+			"transform-async-to-generator"
+		]
+	}
+}
