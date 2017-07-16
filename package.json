@@ -1,12 +1,12 @@
 {
 	"name": "thunk-to-async-generator",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "One or more Async Generators fed by a Thunk",
 	"main": "build/thunk-to-async-generator.js",
 	"modules": "thunk-to-async-generator.js",
 	"scripts": {
-		"prepublish": "mkdir build; npm run build",
-		"build": "babel -o build/thunk-to-async-generator.js thunk-to-async-generator.js",
+		"prepublish": "npm run build",
+		"build": "mkdir -p build; babel -o build/thunk-to-async-generator.js thunk-to-async-generator.js",
 		"test": "node .test"
 	},
 	"keywords": [
