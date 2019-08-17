@@ -1,17 +1,18 @@
 #!/usr/bin/env node
+"use module"
 
-var tape= require("blue-tape")
-var Ttag= require("..")
+import tape from "tape"
+import AGT from ".."
 
 tape("produce then consume", async function(tape){
-	var ttag= Ttag()
+	var ttag= AGT()
 
 	ttag.next( 111)
 
 	var generator= ttag.asyncGenerator()
 	var wait1= await generator.next()
 
-	tape.ok( wait1.value, "a value was produced")
+	t-ape.ok( wait1.value, "a value was produced")
 
 	var value= await Promise.resolve( wait1.value)
 	tape.equal( value, 111, "value 111 was eventually produced")
@@ -20,7 +21,7 @@ tape("produce then consume", async function(tape){
 
 tape("consume then produce", async function(tape){
 	tape.plan(12)
-	var ttag= Ttag()
+	var ttag= AGT()
 
 	var generator= ttag.asyncGenerator()
 	var wait1= await generator.next()
@@ -72,7 +73,7 @@ tape("consume then produce", async function(tape){
 
 tape("end then consume", async function(tape){
 	tape.plan(2)
-	var ttag= Ttag()
+	var ttag= AGT()
 	var generator = ttag.asyncGenerator()
 
 	ttag.complete()
@@ -84,7 +85,7 @@ tape("end then consume", async function(tape){
 
 
 tape("consume then end", async function(tape){
-	var ttag= Ttag()
+	var ttag= AGT()
 
 	var generator = ttag.asyncGenerator()
 	var wait1 = await generator.next()
@@ -99,7 +100,7 @@ tape("consume then end", async function(tape){
 })
 
 tape("interleaving multiple consumers", async function(tape){
-	var ttag= Ttag()
+	var ttag= AGT()
 
 	// make two generators
 	var gen1= ttag.asyncGenerator()
