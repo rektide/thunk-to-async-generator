@@ -4,148 +4,96 @@
 import tape from "tape"
 import AGT from ".."
 
-tape("produce then consume", async function(tape){
-	var ttag= AGT()
+tape( "produce then consume", async function( t){
+	t.plan( 2)
+	const agt= new AGT()
+	agt.produce( 111)
+	agt.produce( 222)
 
-	ttag.next( 111)
+	const
+	  next1= agt.next(),
+	  next2= agt.next()
+	  next3= agt.next()
+	tape.equal( (await next1).value, 111 "value 111 was eventually produced")
+	tape.equal( (await next2).value, 222 "value 222 was eventually produced")
+	t.end()
+})
 
-	var generator= ttag.asyncGenerator()
-	var wait1= await generator.next()
+tape( "consume then produce", async function( t){
+	t.plan( 7)
+	const agt= new AGT()
+	let i= 0
+	agt.next().then( cur=> {
+		tape.equal( i++, 0, "first value")
+		tape.equal( cur.value, 111 "value 111 was eventually produced")
+	})
+	agt.next().then( cur=> {
+		tape.equal( i++, 1, "second value")
+		tape.equal( cur.value, 222 "value 222 was eventually produced")
+	})
+	await Immediate()
+	t.equal( i, 0, "nothing produced yet")
 
-	t-ape.ok( wait1.value, "a value was produced")
+	agt.produce( 111)
+	await Immediate()
+	t.equal( i, 1, "first value produced")
 
-	var value= await Promise.resolve( wait1.value)
-	tape.equal( value, 111, "value 111 was eventually produced")
+	agt.produce( 222)
+	await Immediate()
+	t.equal( i, 2, "first value produced")
+	t.end()
+})
+
+tape("consume then end", async function( t){
+	t.plan( 6)
+	const agt= new AGT()
+	agt.produce( 111)
+	let next111= agt.next() // consume, successfully
+	let next222= agt.next() // consume, successfully
+	agt.produce( 222)
+	agt.return( 42) // end
+	let nextReturned= agt.next() // consume, but had ended
+
+	next111= await next111
+	t.equal( next111.value, 111, "got first value")
+	t.equal( next111.done, false, "first was not done")
+
+	next222= await next222
+	t.equal( next222.value, 222, "got first value")
+	t.equal( next222.done, false, "first was not done")
+
+	nextReturned= await nextReturned
+	t.equal( nextReturned.value, 42, "got return value")
+	t.equal( nextReturned.done, true, "second was done")
+	t.end()
+})
+
+tape( "end then consume", async function( t){
+	t.plan( 4)
+	const agt= new AGT()
+	agt.produce( 111)
+	agt.produce( 222)
+	let next111= agt.next() // consume, successfully
+	agt.return( 42) // end
+	let nextReturned= agt.next() // consume, but had ended
+
+	next111= await next111
+	t.equal( next111.value, 111, "got first value")
+	t.equal( next111.done, false, "first was not done")
+
+	nextReturned= await nextReturned
+	t.equal( nextReturned.value, 42, "got return value")
+	t.equal( nextReturned.done, true, "second was done")
+	t.end()
 })
 
 
-tape("consume then produce", async function(tape){
-	tape.plan(12)
-	var ttag= AGT()
-
-	var generator= ttag.asyncGenerator()
-	var wait1= await generator.next()
-
-	// ask for first output
-	tape.ok( wait1.value, "first output created")
-	tape.ok( wait1.value.then, "first output is a promise")
-	var err1= wait1.value.then( val=> {
-		tape.fail("no first value ought have resolved")
-	}, e=> {
-		tape.pass("first value indeed never resolved")
-	})
-
-	// ask for second output
-	// not using await, allowing execution to pass through
-	var val2= generator.next()
-	tape.ok( val2, "got a second output")
-	tape.ok( val2.then, "second output is a promise")
-	
-	var then2= val2.then( v=> {
-		tape.ok( v.value, "second output eventually has a value")
-		tape.ok( v.value.then, "second output's eventual value is also a promise")
-		return v.value
-	})
-	var err2= then2.then( val=> {
-		tape.fail("no second value ought have resolved")
-	}, e=> {
-		tape.pass("second value indeed never resolved")
-	})
-
-	// end without having given any input
-	ttag.complete()
-
-	// ask again
-	var val3 = generator.next()
-	tape.ok(val3, "got a third output")
-	tape.ok(val3, "third output is a promise")
-	var then3= val3.then( v=>{
-		tape.notOk( v.value, "third output resolves with no value")
-		tape.ok( v.done, "third output resolves done")
-	})
-
-	return Promise.all([
-		err1,
-		err2,
-		then3
-	])
+tape( "produce done after return", async function( t){
 })
 
-tape("end then consume", async function(tape){
-	tape.plan(2)
-	var ttag= AGT()
-	var generator = ttag.asyncGenerator()
+tape( "produceAfterReturn", async function( t){
 
-	ttag.complete()
-
-	var wait1 = await generator.next()
-	tape.notOk( wait1.value, "should not have a value")
-	tape.ok( wait1.done, "should be done")
 })
 
-
-tape("consume then end", async function(tape){
-	var ttag= AGT()
-
-	var generator = ttag.asyncGenerator()
-	var wait1 = await generator.next()
-
-	tape.ok(wait1.value, "a value was produced")
-	tape.ok(wait1.value.then, "value is a promise")
-
-	ttag.next(111)
-
-	var value = await Promise.resolve(wait1.value)
-	tape.equal(value, 111, "value 111 was eventually produced")
-})
-
-tape("interleaving multiple consumers", async function(tape){
-	var ttag= AGT()
-
-	// make two generators
-	var gen1= ttag.asyncGenerator()
-	var gen2= ttag.asyncGenerator()
-
-	// get a promise for the first value (on generator 1)
-	var wait1g1 = await gen1.next()
-	tape.ok(wait1g1.value, "generator 1 has a first value")
-	tape.ok(wait1g1.value.then, "generator 1 has a first promise")
-	var val1g1 = wait1g1.value.then(val => {
-		tape.equal(val, 111, "generator 1's first value resolves to 111")
-	})
-
-	// insert first value
-	ttag.next(111)
-
-	// immediately get first value (on generator 2)
-	var wait1g2 = await gen2.next()
-	tape.ok(wait1g2.value, "generator 2 has a first value")
-	var val1g2 = Promise.resolve(wait1g2.value).then(val => {
-		tape.equal(val, 111, "generator 2's first value resolves to 111")
-	})
-
-	// now the reverse sequence - read from g2, thunk, read from g1
-
-	// get a promise for the second value (on generator 1)
-	var wait2g2 = await gen2.next()
-	tape.ok(wait2g2.value, "generator 2 has a second value")
-	tape.ok(wait2g2.value.then, "generator 2 has a second promise")
-	var val2g2 = wait2g2.value.then(val => {
-		tape.equal(val, 222, "generator 2's second value resolves to 222")
-	})
-
-	// insert second value
-	ttag.next(222)
-
-	// immediately get second value (on generator 2)
-	var wait2g1 = await gen1.next()
-	tape.ok(wait2g1.value, "generator 1 has a second value")
-	var val2g1 = Promise.resolve(wait2g1.value).then(val => {
-		tape.equal(val, 222, "generator 1's second value resolves to 222")
-	})
-
-	return Promise.all([
-		val1g1,
-		val1g2
-	])
+tape( "count", async function( t){
 })
