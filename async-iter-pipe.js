@@ -1,6 +1,5 @@
 "use module"
 import Defer from "p-defer"
-import Slice from "async-iter-slice/indexed.js"
 
 export class AsyncIterThunkDoneError extends Error{
 	constructor( asyncIterThunk){
@@ -9,20 +8,39 @@ export class AsyncIterThunkDoneError extends Error{
 	}
 }
 
+const resolved= Promise.resolve()
+
+function valueize( value, done= false){
+	done= !!done
+	if( value.then){
+		return value.then( value=> ({
+			done,
+			value
+		}))
+	}
+	return {
+		done,
+		value
+	}
+}
+
 export class AsyncIterThunk{
+	// note: falsy values commented out
+
 	// state
 	done= false
-	value= null
+	//value= null
 	reads= [] // reads from consumers pending new values
 	writes= [] // writes from produce awaiting readers
-	ending= false // wrapping up but not done yet
-	head= Promise.resolve()
+	//ending= false // wrapping up but not done yet
+	tail= resolved
 
 	// stored
 	onAbort= null
 
 	// modes
-	produceAfterReturn= false
+	//produceAfterReturn= false
+	//strictAsync= false
 
 	constructor( opts){
 		this.onAbort= ex=> this.throw( ex)
@@ -33,8 +51,11 @@ export class AsyncIterThunk{
 			if( opts.produceAfterReturn){
 				this.produceAfterReturn= true
 			}
-			if( opts.sloppy){
-				this.head= null
+			if( opts.tail|| opts.sloppy){
+				this.tail= opts.tail|| null
+			}
+			if( opts.strictAsync){
+				this.strictAsync= resolved
 			}
 		}
 	}
@@ -48,6 +69,10 @@ export class AsyncIterThunk{
 	get signal(){
 		return this.signal_
 	}
+	/**
+	* Return number of stored write values ready to consume,
+	* or if negative, the number of read values pending
+	*/
 	get count(){
 		if( this.done&& !this.reads){
 			return 0
@@ -55,61 +80,159 @@ export class AsyncIterThunk{
 		return reads.length? -reads.length: writes.length
 	}
 
+	/**
+	* Fill any outstanding reads, then save further produced values
+	*/
 	produce( ...vals){
 		// cannot produce if done
 		if( this.done&& !this.reads){
-			throw new AsyncIterThunkDoneException( this)
+			throw new AsyncIterThunkDoneError( this)
 		}
 
+		// resolve as many outstanding reads as we can
 		let i= 0
-		// satisfy any outstanding reads
 		for( ; i< vals.length&& i< this.reads.length; ++i){
-			this.reads[ i].resolve( vals[ i])
+			// resolve
+			const val= this._valueize( vals[ i])
+			this.reads[ i].resolve( val)
 		}
 		// remove these now satisfied reads
 		if( this.reads.length> i){
-			// still reads left over
+			// still reads left over, remove satisfied ones
 			this.reads= this.reads.slice( i)
-			// all vals consumed
-			return
-		}else if( this.done){
-			// produceAfterReturn mode, now done
-			delete this.reads
 		}else{
-			// all vals consumed, start again
-			this.reads= []
+			// all reads satisfied!
+			if( this.done|| this.ending){
+				delete this.reads
+			}else{
+				this.reads= []
+			}
+			return
 		}
 
-		// funnel remainder into outstanding writes
-		const writeStart= vals.length- i
-		if( writeStart> 0){
-			this.writes.push( ...Slice( vals, writeStart))
+
+		if( this.ending){
+			throw new AsyncIterThunkDoneError( this)
+		}
+
+		// save remainder into outstanding writes
+		for( ; i< vals.length; ++i){
+			const val= this._valueize( vals[ i])
+			this.writes.push( val)
 		}
 	}
-	next(){
-		if( !this.done){
-			return this.writes.unshift()
+
+	_valueize( value, strictAsync= this.strictAsync, done= false){
+		done= !!done
+		if( value&& value.then){
+			return value.then( this._valueize) // should not get called again
+		}
+		value= {
+			done,
+			value
+		}
+		if( strictAsync){ // if value was a promsie, this will be global, & thus strictAsync is undefined
+			return Promise.resolve( value)
+		}
+		return value
+	}
+
+	_nextReturn( value, done= this.done){
+		if( this.tail){
+			
 		}
 
-		if( this.done){
-			return Promise.resolve({
-				done: true,
-				value: this.value
+			return this.tail= this.tail.then( async ()=> {
+
+		}else if( value.then){
+			
+		}else if( this.strictAsync){
+		}
+		const value= fn()
+		if( value.then){
+			value.then( value=> {
+				
+				done: false,
+				value
 			})
 		}
+	}
 
-		if( this.writes.length){
+	next(){
+
+		// use awaiting already produced writes
+		// (if ending, flush these out!)
+		if( !this.done&& this.writes.length){
+			let value= this.writes.unshift()
+			if( this.tail){
+				return this.tail= this.tail.then( async ()=> {
+					value= await value
+					return {
+						done: false,
+						value
+					}
+				})
+			}else if( value.then){
+				return value.then( value=> ({
+					done: false,
+					value
+				})
+			}else{
+				return {
+					done: false,
+					value
+				}
+			}
 		}
-		var d= Defer()
+
+		// already done, return so
+		if( this.done|| this.ending){
+			// wait for tail to finish then be done
+			if( this.tail){
+				return this.tail= this.tail.then(()=> ({
+					done: true,
+					value: this.value
+				}))
+			}
+			// sloppy mode: no waitiing
+			return {
+				done: true,
+				value: this.value
+			}
+		}
+
+		// queue up a new pending read
+		let d= Defer()
 		this.reads.push( d)
-		return d.promise.then( d=> { value: d, done: false})
+		if( this.tail){
+			const oldTail= this.tail
+			// wait for tail
+			return this.tail= this.tail.then(async ()=> {
+				const value= await d.promise
+				this.value= value
+				return {
+					// await value
+					value,
+					done: false
+					//// not done if there are more entailed, or if not done
+					//done: oldTail=== this.tail&& this.done
+				}
+			})
+		}
+		return d.promise.then( value=> {
+			this.value= value
+			return {
+				value,
+				done: false
+			}
+		})
 	}
 	/**
 	* Signify that no further values will be forthcoming
 	*/
 	end(){
 		this.ending= true
-		// TODO
+		return this.tail|| Promise.resolve()
 	}
 	/**
 	* Stop allowing produce, and stop returning already produced values.
@@ -124,10 +247,11 @@ export class AsyncIterThunk{
 			for( let read of this.reads|| []){
 				read.reject( new AsyncIterThunkReturnError( this))
 			}
+			delete this.reads
 		}else if( this.reads){
 		}
-		delete this.reads
-		delete this.writes
+
+		if( this.tail)
 		return {
 			done: true,
 			value
@@ -146,10 +270,6 @@ export class AsyncIterThunk{
 		}
 		throw ex
 	}
-	end(){
-	
-		
-	}
 	[ Symbol.iterator](): {
 		return this
 	}
@@ -157,7 +277,7 @@ export class AsyncIterThunk{
 export {
 	AsyncIterThunk as default,
 	AsyncIterThunk as asyncIterThunk,
-	AsyncIterThunkDoneException as asyncIterThunkDoneException,
-	AsyncIterThunkDoneException as DoneException,
-	AsyncIterThunkDoneException as doneException
+	AsyncIterThunkDoneError as asyncIterThunkDoneError,
+	AsyncIterThunkDoneError as DoneException,
+	AsyncIterThunkDoneError as doneException
 }

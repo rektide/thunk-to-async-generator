@@ -1,16 +1,16 @@
 {
-	"name": "async-iter-thunk",
+	"name": "async-iter-pipe",
 	"version": "1.0.2",
 	"description": "One or more Async Generators fed by a Thunk",
-	"main": "async-iter-thunk.js",
-	"modules": "async-iter-thunk.js",
+	"main": "async-iter-pipe.js",
+	"modules": "async-iter-pipe.js",
 	"scripts": {
 		"test": "node -r esm .test"
 	},
 	"keywords": [
 		"async-iterator",
 		"async-generator",
-		"thunk"
+		"pipe"
 	],
 	"author": "jauntywunderkind",
 	"license": "MIT",
