@@ -10,20 +10,6 @@ export class AsyncIterThunkDoneError extends Error{
 
 const resolved= Promise.resolve()
 
-function valueize( value, done= false){
-	done= !!done
-	if( value.then){
-		return value.then( value=> ({
-			done,
-			value
-		}))
-	}
-	return {
-		done,
-		value
-	}
-}
-
 export class AsyncIterThunk{
 	// note: falsy values commented out
 
@@ -44,6 +30,8 @@ export class AsyncIterThunk{
 
 	constructor( opts){
 		this.onAbort= ex=> this.throw( ex)
+		this.readCount= 0
+		this.writeCount= 0
 		if( opts){
 			if( opts.signal){
 				this.signal= opts.signal
@@ -73,7 +61,7 @@ export class AsyncIterThunk{
 	* Return number of stored write values ready to consume,
 	* or if negative, the number of read values pending
 	*/
-	get count(){
+	get writeBalance(){
 		if( this.done&& !this.reads){
 			return 0
 		}
@@ -88,13 +76,13 @@ export class AsyncIterThunk{
 		if( this.done&& !this.reads){
 			throw new AsyncIterThunkDoneError( this)
 		}
+		++this.writeCount
 
 		// resolve as many outstanding reads as we can
 		let i= 0
 		for( ; i< vals.length&& i< this.reads.length; ++i){
 			// resolve
-			const val= this._valueize( vals[ i])
-			this.reads[ i].resolve( val)
+			this.reads[ i].resolve( vals[ i])
 		}
 		// remove these now satisfied reads
 		if( this.reads.length> i){
@@ -105,7 +93,7 @@ export class AsyncIterThunk{
 			if( this.done|| this.ending){
 				delete this.reads
 			}else{
-				this.reads= []
+				this.reads= this.reads.splice( 0)
 			}
 			return
 		}
@@ -117,115 +105,63 @@ export class AsyncIterThunk{
 
 		// save remainder into outstanding writes
 		for( ; i< vals.length; ++i){
-			const val= this._valueize( vals[ i])
-			this.writes.push( val)
+			this.writes.push( vals[ i])
 		}
 	}
 
-	_valueize( value, strictAsync= this.strictAsync, done= false){
-		done= !!done
-		if( value&& value.then){
-			return value.then( this._valueize) // should not get called again
-		}
-		value= {
-			done,
-			value
-		}
-		if( strictAsync){ // if value was a promsie, this will be global, & thus strictAsync is undefined
-			return Promise.resolve( value)
-		}
-		return value
-	}
-
-	_nextReturn( value, done= this.done){
-		if( this.tail){
-			
+	_nextReturn( fn, value, done= false){
+		value= fn? fn(): value
+		// synchronous shortcut: no tracking, no resolving needed
+		if( !this.tail&& !(value&& value.then)){
+			this.value= value
+			const
+			  iter0= { done, value},
+			  iter= this.strictAsync? Promise.resolve( iter0): iter0
+			return iter
 		}
 
-			return this.tail= this.tail.then( async ()=> {
-
-		}else if( value.then){
-			
-		}else if( this.strictAsync){
-		}
-		const value= fn()
-		if( value.then){
-			value.then( value=> {
-				
-				done: false,
+		// await value & await tail, then set value & return it's IterationResult
+		// wouldn't it be cool if?:
+		//   a promise that can describe it's dependencies,
+		//   have "progress" of getting's value then waiting for tail
+		//   perhaps context-runner style resolution
+		const
+		  oldTail= this.tail,
+		  got= (async ()=> { //IIFE
+			value= await value
+			if( oldTail){
+				await oldTail
+			}
+			this.value= value
+			return {
+				done,
 				value
-			})
+			}
+		  })()
+		// set tail if we're doing that
+		if( this.tail){
+			this.tail= got
 		}
+		return got
 	}
-
 	next(){
+		++this.readCount
 
-		// use awaiting already produced writes
+		// use already produced writes
 		// (if ending, flush these out!)
 		if( !this.done&& this.writes.length){
-			let value= this.writes.unshift()
-			if( this.tail){
-				return this.tail= this.tail.then( async ()=> {
-					value= await value
-					return {
-						done: false,
-						value
-					}
-				})
-			}else if( value.then){
-				return value.then( value=> ({
-					done: false,
-					value
-				})
-			}else{
-				return {
-					done: false,
-					value
-				}
-			}
+			return this._nextReturn( null, this.value)
 		}
 
 		// already done, return so
 		if( this.done|| this.ending){
-			// wait for tail to finish then be done
-			if( this.tail){
-				return this.tail= this.tail.then(()=> ({
-					done: true,
-					value: this.value
-				}))
-			}
-			// sloppy mode: no waitiing
-			return {
-				done: true,
-				value: this.value
-			}
+			return this._nextReturn(()=> ({ done: true, value: this.value }))
 		}
 
 		// queue up a new pending read
-		let d= Defer()
-		this.reads.push( d)
-		if( this.tail){
-			const oldTail= this.tail
-			// wait for tail
-			return this.tail= this.tail.then(async ()=> {
-				const value= await d.promise
-				this.value= value
-				return {
-					// await value
-					value,
-					done: false
-					//// not done if there are more entailed, or if not done
-					//done: oldTail=== this.tail&& this.done
-				}
-			})
-		}
-		return d.promise.then( value=> {
-			this.value= value
-			return {
-				value,
-				done: false
-			}
-		})
+		let pendingRead= Defer()
+		this.reads.push( pendingRead)
+		return this._nextReturn( null, pendingRead.promise)
 	}
 	/**
 	* Signify that no further values will be forthcoming
@@ -270,7 +206,7 @@ export class AsyncIterThunk{
 		}
 		throw ex
 	}
-	[ Symbol.iterator](): {
+	[ Symbol.iterator](){
 		return this
 	}
 }

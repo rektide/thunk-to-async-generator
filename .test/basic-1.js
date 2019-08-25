@@ -12,10 +12,10 @@ tape( "produce then consume", async function( t){
 
 	const
 	  next1= agt.next(),
-	  next2= agt.next()
+	  next2= agt.next(),
 	  next3= agt.next()
-	tape.equal( (await next1).value, 111 "value 111 was eventually produced")
-	tape.equal( (await next2).value, 222 "value 222 was eventually produced")
+	tape.equal( (await next1).value, 111, "value 111 was eventually produced")
+	tape.equal( (await next2).value, 222, "value 222 was eventually produced")
 	t.end()
 })
 
@@ -25,11 +25,11 @@ tape( "consume then produce", async function( t){
 	let i= 0
 	agt.next().then( cur=> {
 		tape.equal( i++, 0, "first value")
-		tape.equal( cur.value, 111 "value 111 was eventually produced")
+		tape.equal( cur.value, 111, "value 111 was eventually produced")
 	})
 	agt.next().then( cur=> {
 		tape.equal( i++, 1, "second value")
-		tape.equal( cur.value, 222 "value 222 was eventually produced")
+		tape.equal( cur.value, 222, "value 222 was eventually produced")
 	})
 	await Immediate()
 	t.equal( i, 0, "nothing produced yet")
