@@ -2,6 +2,7 @@
 "use module"
 
 import tape from "tape"
+import Immediate from "p-immediate"
 import AGT from ".."
 
 tape( "produce then consume", async function( t){
@@ -14,8 +15,9 @@ tape( "produce then consume", async function( t){
 	  next1= agt.next(),
 	  next2= agt.next(),
 	  next3= agt.next()
-	tape.equal( (await next1).value, 111, "value 111 was eventually produced")
-	tape.equal( (await next2).value, 222, "value 222 was eventually produced")
+	t.equal( (await next1).value, 111, "value 111 was eventually produced")
+	t.equal( (await next2).value, 222, "value 222 was eventually produced")
+	// TODO: sleep, validate 3 not resolved
 	t.end()
 })
 
@@ -24,23 +26,23 @@ tape( "consume then produce", async function( t){
 	const agt= new AGT()
 	let i= 0
 	agt.next().then( cur=> {
-		tape.equal( i++, 0, "first value")
-		tape.equal( cur.value, 111, "value 111 was eventually produced")
+		t.equal( cur.value, 111, "produced first value, 111")
+		t.equal( i++, 0, "produced first value")
 	})
 	agt.next().then( cur=> {
-		tape.equal( i++, 1, "second value")
-		tape.equal( cur.value, 222, "value 222 was eventually produced")
+		t.equal( i++, 1, "produced second value, 222")
+		t.equal( cur.value, 222, "produced second value")
 	})
 	await Immediate()
-	t.equal( i, 0, "nothing produced yet")
+	t.equal( i, 0, "saw nothing")
 
 	agt.produce( 111)
 	await Immediate()
-	t.equal( i, 1, "first value produced")
+	t.equal( i, 1, "saw first value")
 
 	agt.produce( 222)
 	await Immediate()
-	t.equal( i, 2, "first value produced")
+	t.equal( i, 2, "saw second value")
 	t.end()
 })
 
@@ -89,11 +91,13 @@ tape( "end then consume", async function( t){
 
 
 tape( "produce done after return", async function( t){
+	t.end()
 })
 
 tape( "produceAfterReturn", async function( t){
-
+	t.end()
 })
 
 tape( "count", async function( t){
+	t.end()
 })

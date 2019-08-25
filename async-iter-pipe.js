@@ -80,24 +80,25 @@ export class AsyncIterThunk{
 
 		// resolve as many outstanding reads as we can
 		let i= 0
-		for( ; i< vals.length&& i< this.reads.length; ++i){
-			// resolve
-			this.reads[ i].resolve( vals[ i])
-		}
-		// remove these now satisfied reads
-		if( this.reads.length> i){
-			// still reads left over, remove satisfied ones
-			this.reads= this.reads.slice( i)
-		}else{
-			// all reads satisfied!
-			if( this.done|| this.ending){
-				delete this.reads
-			}else{
-				this.reads= this.reads.splice( 0)
+		if( this.reads){
+			for( ; i< vals.length&& i< this.reads.length; ++i){
+				// resolve
+				this.reads[ i].resolve( vals[ i])
 			}
-			return
-		}
+			// remove these now satisfied reads
+			if( i> 0){
+				this.reads.splice( 0, i)
+			}
 
+			if( i=== vals.length){
+				// vals are gone!
+				if( this.done|| this.ending){
+					// cleanup, no more reads coming
+					delete this.reads
+				}
+				return
+			}
+		}
 
 		if( this.ending){
 			throw new AsyncIterThunkDoneError( this)
@@ -149,8 +150,8 @@ export class AsyncIterThunk{
 
 		// use already produced writes
 		// (if ending, flush these out!)
-		if( !this.done&& this.writes.length){
-			return this._nextReturn( null, this.value)
+		if( !this.done&& this.writes&& this.writes.length){
+			return this._nextReturn( null, this.writes.shift())
 		}
 
 		// already done, return so
@@ -179,9 +180,9 @@ export class AsyncIterThunk{
 		delete this.writes
 
 		if( this.reads&& !this.produceAfterReturn){
-			const err= new AsyncIterThunkReturnError( this)
+			const err= new AsyncIterThunkDoneError( this)
 			for( let read of this.reads|| []){
-				read.reject( new AsyncIterThunkReturnError( this))
+				read.reject( new AsyncIterThunkDoneError( this))
 			}
 			delete this.reads
 		}else if( this.reads){
