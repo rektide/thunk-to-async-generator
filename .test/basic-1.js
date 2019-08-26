@@ -46,7 +46,7 @@ tape( "consume then produce", async function( t){
 	t.end()
 })
 
-tape("consume then end", async function( t){
+tape( "consume then end", async function( t){
 	t.plan( 6)
 	const agt= new AGT()
 	agt.produce( 111)

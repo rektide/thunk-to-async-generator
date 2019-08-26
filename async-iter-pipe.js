@@ -92,9 +92,19 @@ export class AsyncIterThunk{
 
 			if( i=== vals.length){
 				// vals are gone!
-				if( this.done|| this.ending){
+				if(( this.done|| this.ending)&& this.reads.length=== 0){
 					// cleanup, no more reads coming
 					delete this.reads
+					this.done= true
+					if( this.ending){
+						Promise.resolve().then(()=> {
+							this.ending.resolve({
+								done: true
+								value: this.value
+							})
+						})
+					}
+					
 				}
 				return
 			}
@@ -156,7 +166,8 @@ export class AsyncIterThunk{
 
 		// already done, return so
 		if( this.done|| this.ending){
-			return this._nextReturn(()=> ({ done: true, value: this.value }))
+			// done
+			return this._nextReturn(()=> this.value, null, true)
 		}
 
 		// queue up a new pending read
@@ -179,16 +190,26 @@ export class AsyncIterThunk{
 		this.value= value
 		delete this.writes
 
-		if( this.reads&& !this.produceAfterReturn){
-			const err= new AsyncIterThunkDoneError( this)
-			for( let read of this.reads|| []){
-				read.reject( new AsyncIterThunkDoneError( this))
-			}
+		if( this.reads&& this.reads.length=== 0){
+			// clear already drained
 			delete this.reads
-		}else if( this.reads){
 		}
 
-		if( this.tail)
+		if( this.reads){
+			if( !this.produceAfterReturn){
+				const err= new AsyncIterThunkDoneError( this)
+				for( let read of this.reads|| []){
+					read.reject( new AsyncIterThunkDoneError( this))
+				}
+				delete this.reads
+				this.done= true
+			}else{
+				this.ending= new Defer()
+				return this.ending.promise
+			}
+		}else{
+			this.done= true
+		}
 		return {
 			done: true,
 			value
