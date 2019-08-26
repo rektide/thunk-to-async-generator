@@ -1,7 +1,7 @@
 {
 	"name": "async-iter-pipe",
 	"version": "1.0.2",
-	"description": "One or more Async Generators fed by a Thunk",
+	"description": "an manually fed async-iterator that can queue reads or writes",
 	"main": "async-iter-pipe.js",
 	"modules": "async-iter-pipe.js",
 	"scripts": {
