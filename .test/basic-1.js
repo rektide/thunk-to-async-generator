@@ -3,7 +3,7 @@
 
 import tape from "tape"
 import Immediate from "p-immediate"
-import AGT from ".."
+import AGT, { AsyncIterThunkDoneError} from ".."
 
 tape( "produce then consume", async function( t){
 	t.plan( 2)
@@ -70,34 +70,73 @@ tape( "consume then end", async function( t){
 	t.end()
 })
 
-tape( "end then consume", async function( t){
+tape( "return then consume fails", async function( t){
 	t.plan( 4)
 	const agt= new AGT()
-	agt.produce( 111)
-	agt.produce( 222)
-	let next111= agt.next() // consume, successfully
+	agt.produce( 111) // gets dropped by return
+	t.equal( agt.queueCount, 1, "one write queued")
+
+
 	agt.return( 42) // end
-	let nextReturned= agt.next() // consume, but had ended
-
-	next111= await next111
-	t.equal( next111.value, 111, "got first value")
-	t.equal( next111.done, false, "first was not done")
-
+	t.equal( agt.queueCount, 0, "queued write dropped")
+	let nextReturned= agt.next() // going to fail
 	nextReturned= await nextReturned
 	t.equal( nextReturned.value, 42, "got return value")
 	t.equal( nextReturned.done, true, "second was done")
 	t.end()
 })
 
+tape( "return then produce fails", async function( t){
+	t.plan( 5)
+	const agt= new AGT()
+	let nextReturned= agt.next()
+	t.equal( agt.queueCount, -1, "queued read")
+	agt.return( 42) // end
+	t.equal( agt.queueCount, 0, "dropped queued read")
 
-tape( "produce done after return", async function( t){
-	t.end()
+	try{
+		agt.produce( 678)
+		t.fail( "unexpected success of produce")
+	}catch( ex){
+		t.ok( ex instanceof AsyncIterThunkDoneError, "got expected AsyncIterThunkDoneError from produce")
+		t.equal( agt.queueCount, 0, "produce did not change queueCount")
+	}
+
+	nextReturned.catch( function( ex){
+		t.ok( ex instanceof AsyncIterThunkDoneError, "got expected AsyncIterThunkDoneError from in flight AsyncIterationResult")
+		t.end()
+	})
 })
 
 tape( "produceAfterReturn", async function( t){
+	t.plan( 4)
+	const agt= new AGT({ produceAfterReturn: true})
+	let
+	  next1= agt.next(),
+	  return1= agt.return( 42)
+	agt.produce( 111)
+
+	next1= await next1
+	t.equal( next1.value, 111, "got 111")
+	t.equal( next1.done, false, "was not done")
+
+	return1= await return1
+	t.equal( return1.value, 42, "return value")
+	t.equal( return1.done, true, "return done")
 	t.end()
 })
 
 tape( "count", async function( t){
+	t.plan( 2)
+	const agt= new AGT()
+	let
+	  read1= agt.next(),
+	  read2= agt.next()
+	t.equal( agt.queueCount, -2, "has two outstanding read requests")
+	agt.produce( 1)
+	agt.produce( 2)
+	agt.produce( 3)
+	agt.produce( 4)
+	t.equal( agt.queueCount, 2, "has two queued writes")
 	t.end()
 })

@@ -61,11 +61,14 @@ export class AsyncIterThunk{
 	* Return number of stored write values ready to consume,
 	* or if negative, the number of read values pending
 	*/
-	get writeBalance(){
-		if( this.done&& !this.reads){
+	get queueCount(){
+		if( this.writes&& this.writes.length){
+			return this.writes.length
+		}else if( this.reads&& this.reads.length){
+			return -this.reads.length
+		}else{
 			return 0
 		}
-		return reads.length? -reads.length: writes.length
 	}
 
 	/**
@@ -99,7 +102,7 @@ export class AsyncIterThunk{
 					if( this.ending){
 						Promise.resolve().then(()=> {
 							this.ending.resolve({
-								done: true
+								done: true,
 								value: this.value
 							})
 						})
@@ -204,7 +207,7 @@ export class AsyncIterThunk{
 				delete this.reads
 				this.done= true
 			}else{
-				this.ending= new Defer()
+				this.ending= Defer()
 				return this.ending.promise
 			}
 		}else{
