@@ -10,7 +10,7 @@ export class AsyncIterThunkDoneError extends Error{
 
 const resolved= Promise.resolve()
 
-export class AsyncIterThunk{
+export class AsyncIterPipe{
 	// note: falsy values commented out
 
 	// state
@@ -77,7 +77,7 @@ export class AsyncIterThunk{
 	produce( ...vals){
 		// cannot produce if done
 		if( this.done&& !this.reads){
-			throw new AsyncIterThunkDoneError( this)
+			throw new AsyncIterPipeDoneError( this)
 		}
 		++this.writeCount
 
@@ -114,7 +114,7 @@ export class AsyncIterThunk{
 		}
 
 		if( this.ending){
-			throw new AsyncIterThunkDoneError( this)
+			throw new AsyncIterPipeDoneError( this)
 		}
 
 		// save remainder into outstanding writes
@@ -200,9 +200,9 @@ export class AsyncIterThunk{
 
 		if( this.reads){
 			if( !this.produceAfterReturn){
-				const err= new AsyncIterThunkDoneError( this)
+				const err= new AsyncIterPipeDoneError( this)
 				for( let read of this.reads|| []){
-					read.reject( new AsyncIterThunkDoneError( this))
+					read.reject( err)
 				}
 				delete this.reads
 				this.done= true
@@ -236,9 +236,9 @@ export class AsyncIterThunk{
 	}
 }
 export {
-	AsyncIterThunk as default,
-	AsyncIterThunk as asyncIterThunk,
-	AsyncIterThunkDoneError as asyncIterThunkDoneError,
-	AsyncIterThunkDoneError as DoneException,
-	AsyncIterThunkDoneError as doneException
+	AsyncIterPipe as default,
+	AsyncIterPipe as asyncIterPipe,
+	AsyncIterPipeDoneError as asyncIterPipeDoneError,
+	AsyncIterPipeDoneError as DoneException,
+	AsyncIterPipeDoneError as doneException
 }
