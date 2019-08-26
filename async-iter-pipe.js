@@ -101,6 +101,7 @@ export class AsyncIterPipe{
 					this.done= true
 					if( this.ending){
 						Promise.resolve().then(()=> {
+							this.value= delete this.endingValue
 							this.ending.resolve({
 								done: true,
 								value: this.value
@@ -190,7 +191,6 @@ export class AsyncIterPipe{
 	* If 'produceAfterReturn' mode is set, produce will continue to fulfill already issues reads.
 	*/
 	return( value){
-		this.value= value
 		delete this.writes
 
 		if( this.reads&& this.reads.length=== 0){
@@ -206,12 +206,15 @@ export class AsyncIterPipe{
 				}
 				delete this.reads
 				this.done= true
+				this.value= value
 			}else{
 				this.ending= Defer()
+				this.endingValue= value
 				return this.ending.promise
 			}
 		}else{
 			this.done= true
+			this.value= value
 		}
 		return {
 			done: true,
